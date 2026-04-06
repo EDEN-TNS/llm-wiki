@@ -3,13 +3,88 @@ import type { IngestResult, QueryResult, LintResult } from '@/types';
 import { readIndex, getWikiPages, readSchema } from './storage';
 import { slugify, formatDate } from './utils';
 
+/**
+ * LLM Provider Configuration
+ *
+ * Supports two providers via environment variables:
+ *
+ * 1. Ollama (default) — local Qwen3 via OpenAI-compatible API
+ *    LLM_PROVIDER=ollama
+ *    LLM_BASE_URL=http://localhost:11434/v1  (default)
+ *    LLM_MODEL=qwen3                         (default)
+ *
+ * 2. OpenAI — cloud API
+ *    LLM_PROVIDER=openai
+ *    OPENAI_API_KEY=sk-...
+ *    LLM_MODEL=gpt-4o
+ */
+
+const PROVIDER = process.env.LLM_PROVIDER || 'ollama';
+const MODEL = process.env.LLM_MODEL || (PROVIDER === 'ollama' ? 'qwen3' : 'gpt-4o');
+
 function getClient(): OpenAI {
+  if (PROVIDER === 'ollama') {
+    return new OpenAI({
+      baseURL: process.env.LLM_BASE_URL || 'http://localhost:11434/v1',
+      apiKey: 'ollama', // Ollama doesn't need a real key
+    });
+  }
+  // OpenAI or any other OpenAI-compatible provider
   return new OpenAI({
+    baseURL: process.env.LLM_BASE_URL || undefined,
     apiKey: process.env.OPENAI_API_KEY,
   });
 }
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+/**
+ * Strip Qwen3 thinking tags from response.
+ * Qwen3 may wrap reasoning in <think>...</think> blocks.
+ */
+function stripThinkingTags(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+}
+
+/**
+ * For Qwen3/Ollama: prepend to user messages to disable
+ * the thinking/reasoning mode and get direct JSON output.
+ */
+function wrapUserMessage(content: string): string {
+  if (PROVIDER === 'ollama') {
+    return `/no_think\n${content}`;
+  }
+  return content;
+}
+
+/**
+ * Extract JSON from LLM response, handling:
+ * - Direct JSON
+ * - JSON in markdown code fences
+ * - JSON after thinking tags
+ */
+function extractJSON<T>(text: string): T {
+  const cleaned = stripThinkingTags(text);
+
+  // Try direct parse
+  try {
+    return JSON.parse(cleaned);
+  } catch { /* continue */ }
+
+  // Try extracting from markdown code fences
+  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) {
+    try {
+      return JSON.parse(fenceMatch[1].trim());
+    } catch { /* continue */ }
+  }
+
+  // Try extracting first JSON object
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    return JSON.parse(jsonMatch[0]);
+  }
+
+  throw new Error('Failed to extract JSON from LLM response');
+}
 
 export async function ingestSource(sourceContent: string, sourceFilename: string): Promise<IngestResult> {
   const client = getClient();
@@ -57,7 +132,7 @@ IMPORTANT: Return ONLY the JSON object. No markdown fences. No additional text.`
     model: MODEL,
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Ingest this source document (filename: ${sourceFilename}):\n\n${sourceContent}` },
+      { role: 'user', content: wrapUserMessage(`Ingest this source document (filename: ${sourceFilename}):\n\n${sourceContent}`) },
     ],
     temperature: 0.3,
     max_tokens: 16000,
@@ -65,7 +140,7 @@ IMPORTANT: Return ONLY the JSON object. No markdown fences. No additional text.`
 
   const text = response.choices[0]?.message?.content || '{}';
 
-  let parsed: {
+  const parsed = extractJSON<{
     summary: string;
     pages: Array<{
       slug: string;
@@ -73,18 +148,7 @@ IMPORTANT: Return ONLY the JSON object. No markdown fences. No additional text.`
       frontmatter: Record<string, unknown>;
       content: string;
     }>;
-  };
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    // Try to extract JSON from the response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      parsed = JSON.parse(jsonMatch[0]);
-    } else {
-      throw new Error('Failed to parse LLM response as JSON');
-    }
-  }
+  }>(text);
 
   const pagesCreated: string[] = [];
   const pagesUpdated: string[] = [];
@@ -151,7 +215,7 @@ IMPORTANT: Return ONLY the JSON object. No markdown fences.`;
     model: MODEL,
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: question },
+      { role: 'user', content: wrapUserMessage(question) },
     ],
     temperature: 0.5,
     max_tokens: 4000,
@@ -159,13 +223,10 @@ IMPORTANT: Return ONLY the JSON object. No markdown fences.`;
 
   const text = response.choices[0]?.message?.content || '{}';
   try {
-    return JSON.parse(text);
+    return extractJSON<QueryResult>(text);
   } catch {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    return { answer: text, citations: [], suggestFile: false };
+    // Fallback: return the raw text as the answer
+    return { answer: stripThinkingTags(text), citations: [], suggestFile: false };
   }
 }
 
@@ -212,7 +273,7 @@ IMPORTANT: Return ONLY the JSON object.`;
     model: MODEL,
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: 'Run a health check on this wiki.' },
+      { role: 'user', content: wrapUserMessage('Run a health check on this wiki.') },
     ],
     temperature: 0.3,
     max_tokens: 4000,
@@ -220,12 +281,8 @@ IMPORTANT: Return ONLY the JSON object.`;
 
   const text = response.choices[0]?.message?.content || '{}';
   try {
-    return JSON.parse(text);
+    return extractJSON<LintResult>(text);
   } catch {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
     return { issues: [] };
   }
 }

@@ -1,10 +1,29 @@
 "use client";
 
-import { Settings, Palette, Type, Image as ImageIcon, Link2, Eye } from "lucide-react";
-import { useBranding, type BrandingConfig } from "@/lib/branding";
+import { useEffect, useState } from "react";
+import { Settings, Palette, Type, Image as ImageIcon, Link2, Eye, Cpu, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { useBranding } from "@/lib/branding";
+
+interface LLMStatus {
+  provider: string;
+  model: string;
+  baseUrl: string;
+  connected: boolean;
+  availableModels: string[];
+}
 
 export default function SettingsPage() {
   const branding = useBranding();
+  const [llmStatus, setLlmStatus] = useState<LLMStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/status")
+      .then(r => r.json())
+      .then(setLlmStatus)
+      .catch(() => {})
+      .finally(() => setStatusLoading(false));
+  }, []);
 
   const configEntries: Array<{
     label: string;
@@ -32,6 +51,52 @@ export default function SettingsPage() {
       <p className="text-sm text-muted-foreground mb-6">
         Whitelabel branding configuration. Set these environment variables to customize the app.
       </p>
+
+      {/* LLM Provider Status */}
+      <div className="bg-card rounded-xl border border-border p-5 mb-6">
+        <h2 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+          <Cpu className="w-4 h-4" /> LLM Provider
+        </h2>
+        {statusLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" /> Checking connection...
+          </div>
+        ) : llmStatus ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {llmStatus.connected ? (
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-destructive" />
+                )}
+                <span className="text-sm font-medium text-foreground">
+                  {llmStatus.connected ? "Connected" : "Disconnected"}
+                </span>
+              </div>
+              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-md">
+                {llmStatus.provider}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><span className="text-muted-foreground">Model:</span> <span className="text-foreground font-mono">{llmStatus.model}</span></div>
+              <div><span className="text-muted-foreground">Base URL:</span> <span className="text-foreground font-mono text-xs">{llmStatus.baseUrl}</span></div>
+            </div>
+            {llmStatus.availableModels.length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Available models:</p>
+                <div className="flex flex-wrap gap-1">
+                  {llmStatus.availableModels.map(m => (
+                    <span key={m} className={`text-xs px-2 py-0.5 rounded-md ${m === llmStatus.model ? 'bg-primary/20 text-primary font-medium' : 'bg-secondary text-muted-foreground'}`}>{m}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-destructive">Failed to check LLM status</p>
+        )}
+      </div>
 
       {/* Live Preview */}
       <div className="bg-card rounded-xl border border-border p-5 mb-6">
