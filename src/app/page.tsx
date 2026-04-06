@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BookOpen, Upload, MessageSquare, ShieldCheck, FileText, GitFork } from "lucide-react";
+import { useBranding } from "@/lib/branding";
 
 interface WikiPageSummary { slug: string; title: string; category: string; summary: string; updated: string; }
 interface RawSource { filename: string; size: number; uploadedAt: string; }
 
 export default function Dashboard() {
+  const branding = useBranding();
   const [pages, setPages] = useState<WikiPageSummary[]>([]);
   const [sources, setSources] = useState<RawSource[]>([]);
   const [log, setLog] = useState("");
@@ -23,8 +25,8 @@ export default function Dashboard() {
   return (
     <div className="p-8 max-w-6xl">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground">LLM Wiki</h1>
-        <p className="text-muted-foreground mt-1">Personal knowledge base powered by LLMs</p>
+        <h1 className="text-3xl font-bold text-foreground">{branding.appName}</h1>
+        <p className="text-muted-foreground mt-1">{branding.metaDescription}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
