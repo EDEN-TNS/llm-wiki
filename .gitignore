@@ -32,6 +32,13 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# Wiki data (user-specific, keep structure but not content)
+data/raw/*
+!data/raw/.gitkeep
+data/wiki/*
+!data/wiki/.gitkeep
 
 # vercel
 .vercel

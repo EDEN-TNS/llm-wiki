@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LLM Wiki
 
-## Getting Started
+> Personal knowledge base powered by LLMs — inspired by [Andrej Karpathy's LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
 
-First, run the development server:
+A web-based implementation of Karpathy's "LLM Wiki" pattern: instead of traditional RAG, the LLM **incrementally builds and maintains a persistent wiki** — a structured, interlinked collection of markdown files that compounds knowledge over time.
+
+## Architecture
+
+Three layers following Karpathy's design:
+
+1. **Raw Sources** (`data/raw/`) — Immutable uploaded documents (PDF, MD, TXT, HTML)
+2. **Wiki** (`data/wiki/`) — LLM-generated markdown pages with cross-links and frontmatter
+3. **Schema** (`data/schema.md`) — Configuration defining wiki conventions and workflows
+
+## Features
+
+- **Dashboard** — Wiki stats, recent activity, quick actions
+- **Wiki Browser** — Browse all pages with category filtering and tag display
+- **Wiki Pages** — Markdown rendering with `[[wiki-link]]` support, inline editing
+- **Graph View** — D3.js force-directed visualization of wiki page connections
+- **Source Upload** — Drag & drop file upload with one-click LLM ingestion
+- **Q&A Query** — Chat-style interface to query the wiki with citations
+- **Lint / Health Check** — LLM-powered wiki analysis for orphans, gaps, contradictions
+- **Operations Log** — Chronological record of all wiki operations
+
+## Tech Stack
+
+- **Next.js 16** (App Router, TypeScript)
+- **Tailwind CSS** (dark theme)
+- **react-markdown** + remark-gfm for wiki rendering
+- **D3.js** for graph visualization
+- **OpenAI API** (GPT-4o) for ingest/query/lint
+- **File system** storage (local dev) / S3 (production)
+
+## Quick Start
 
 ```bash
+# Install dependencies
+npm install
+
+# Set up environment
+cp .env.example .env.local
+# Edit .env.local and add your OpenAI API key
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Usage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Upload Sources** — Go to Sources, drag & drop or browse files
+2. **Ingest** — Click "Ingest" on any uploaded source, LLM creates wiki pages
+3. **Browse Wiki** — Navigate wiki pages with cross-references and markdown rendering
+4. **Query** — Ask questions against your knowledge base
+5. **Lint** — Run health checks to maintain wiki quality
+6. **Graph** — Visualize connections between wiki pages
 
-## Learn More
+## Deployment (AWS)
 
-To learn more about Next.js, take a look at the following resources:
+Deploy via AWS Amplify:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+# Connect Amplify to your GitHub repo
+# Set environment variable: OPENAI_API_KEY
+# Amplify auto-builds on push to main
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## License
 
-## Deploy on Vercel
+MIT
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+*Inspired by Andrej Karpathy's "LLM Wiki" idea file (April 2026)*
