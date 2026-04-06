@@ -1,0 +1,25 @@
+###############################################################################
+# Ollama + Qwen3 — inference container
+#
+# Build:  docker build -f deploy/Dockerfile.ollama -t ollama-qwen3 .
+# Run:    docker run -d -p 11434:11434 --name ollama-qwen3 ollama-qwen3
+# Test:   curl http://localhost:11434/v1/models
+###############################################################################
+
+FROM ollama/ollama:latest
+
+# Install curl for health checks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Expose the Ollama API (OpenAI-compatible at /v1/*)
+EXPOSE 11434
+
+# Health check (generous start period for model download)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=5 \
+    CMD curl -sf http://localhost:11434/api/tags || exit 1
+
+# Entrypoint script: start Ollama, pull model if needed, then serve
+COPY deploy/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
